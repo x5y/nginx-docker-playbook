@@ -86,12 +86,6 @@
     state: directory
     mode: '0755'
 
-- name: Create a link to log
-  file:
-    src: "{{ work_dir }}/log/resource.log"
-    dest: "{{ work_dir }}/static-html/resource.log"
-    state: link
-
 - name: Build image
   docker_image:
     build:
