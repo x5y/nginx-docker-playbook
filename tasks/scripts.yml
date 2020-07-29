@@ -1,0 +1,37 @@
+- name: Install BeautifulSoup
+  pip:
+    name: beautifulsoup4
+  become: yes
+
+- name: Download default nginx page
+  get_url:
+    url: http://localhost
+    dest: /tmp/nginx-page
+
+- name: Run word count script
+  script: files/html_word_counter.py /tmp/nginx-page
+  args:
+    executable: python
+  register: output
+
+- name: Output of word count script
+  debug:
+    msg: "{{ output.stdout_lines }}"
+
+- name: Upload container status script
+  copy:
+    src: files/check-nginx-health.sh
+    dest: "{{ work_dir }}/bin/"
+    mode: 0744
+
+- name: Run health check every 10 seconds
+  cron:
+    name: "nginx health check {{ item }} sec"
+    job: "sleep {{ item }}; {{ work_dir }}/bin/check-nginx-health.sh"
+  loop:
+    - 0
+    - 10
+    - 20
+    - 30
+    - 40
+    - 50

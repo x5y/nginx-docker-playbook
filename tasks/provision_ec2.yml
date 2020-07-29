@@ -1,0 +1,86 @@
+- name: Create VPC
+  ec2_vpc_net:
+    name: test-vpc
+    cidr_block: "{{ vpc_cidr }}"
+  register: vpc
+
+- name: Add internet gateway
+  ec2_vpc_igw:
+    vpc_id: "{{ vpc.vpc.id }}"
+    state: present
+  register: igw
+
+- name: Create subnet
+  ec2_vpc_subnet:
+    vpc_id: "{{ vpc.vpc.id }}"
+    cidr: "{{ subnet_cidr }}"
+  register: subnet
+
+- name: Setup public subnet route table
+  ec2_vpc_route_table:
+    vpc_id: "{{ vpc.vpc.id }}"
+    subnets:
+      - "{{ subnet.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw.gateway_id }}"
+
+- name: Get public ip
+  uri: 
+    url: http://ifconfig.me/ip
+    return_content: yes
+  register: ip_response
+
+- name: Create security group
+  ec2_group:
+    name: test-sg
+    description: sg for test instance
+    vpc_id: "{{ vpc.vpc.id }}"
+    rules:
+      - proto: tcp
+        ports:
+        - 22
+        cidr_ip: "{{ ip_response.content }}/32"
+      - proto: tcp
+        ports:
+        - 80
+        cidr_ip: 0.0.0.0/0
+  register: security_group
+
+- name: Find CentOS ami
+  ec2_ami_info:
+    owners: 125523088429
+    filters:
+      name: "CentOS 7* x86_64"
+  register: amis
+
+- name: Launch instance
+  vars:
+    ami_id: >
+      {{ amis.images | selectattr('name', 'defined') | sort(attribute='creation_date') | last }}
+  ec2:
+    key_name: "{{ key-pair }}"
+    type: t2.micro
+    image: "{{ ami_id.image_id }}"
+    vpc_subnet_id: "{{ subnet.subnet.id }}"
+    group_id: "{{ security_group.group_id }}"
+    assign_public_ip: yes
+    wait: true
+    instance_tags:
+      name: test-instance
+  register: ec2
+
+- name: Wait for ssh
+  wait_for:
+    host: "{{ item.public_dns_name }}"
+    port: 22
+    delay: 20
+    timeout: 180
+    state: started
+  with_items: "{{ ec2.instances }}"
+
+- name: Add instance to hosts
+  add_host:
+    name: '{{ item.public_ip }}'
+    groups: ec2_instances
+  with_items: "{{ ec2.instances }}"

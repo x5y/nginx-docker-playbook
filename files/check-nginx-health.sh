@@ -1,0 +1,1 @@
+echo -e "`date +%F\ %T` `docker stats --no-stream | grep nginx`     "`docker ps | grep nginx | awk 'BEGIN { FS = " {2,}" } ; {print $5}'`"\n" >> /home/centos/log/resource.log

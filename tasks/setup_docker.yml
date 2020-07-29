@@ -1,0 +1,109 @@
+- name: Install firewalld
+  yum:
+    name: firewalld
+    state: latest
+  become: yes
+
+- name: Ensure firewalld is running
+  systemd:
+    state: started
+    name: firewalld
+
+- name: Enable nginx port
+  firewalld:
+    port: "{{ item }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  become: yes
+  with_items: "{{ firewall_ports }}"
+
+- name: Install yum utils
+  yum:
+    name: yum-utils
+    state: latest
+  become: yes
+
+- name: Install epel repo
+  yum:
+    name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    state: present
+  become: yes
+
+- name: Install pip
+  yum:
+    name: python-pip
+    state: present
+  become: yes
+
+- name: Install Docker Module for Python
+  pip:
+    name: docker
+  become: yes
+
+- name: Add Docker repo
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/Docker-CE.repo
+  become: yes
+
+- name: Install Docker
+  package:
+    name: docker-ce
+    state: latest
+  become: yes
+
+- name: Ensure docker deamon is running
+  service:
+    name: docker
+    state: started
+  become: true
+
+- name: Add centos to docker group
+  user:
+    name: centos
+    group: docker
+  become: true
+
+- name: Refresh groups
+  meta: reset_connection
+
+- name: Upload docker file
+  copy:
+    src: files/Dockerfile
+    dest: "{{ work_dir }}"
+
+- name: Upload resource log
+  copy:
+    src: files/resource.log
+    dest: "{{ work_dir }}/log/"
+    mode: 0644
+    force: no
+
+- name: Create static-html dir
+  file:
+    path: "{{ work_dir }}/static-html/"
+    state: directory
+    mode: '0755'
+
+- name: Create a link to log
+  file:
+    src: "{{ work_dir }}/log/resource.log"
+    dest: "{{ work_dir }}/static-html/resource.log"
+    state: link
+
+- name: Build image
+  docker_image:
+    build:
+      path: "{{ work_dir }}"
+      pull: yes
+    name: nginx-image
+    force_source: yes
+    source: build
+
+- name: Create container
+  docker_container:
+    name: nginx-container
+    image: nginx-image
+    ports: 80:80
+    volumes: "{{ work_dir }}/log/resource.log:/usr/share/nginx/html/resource.html"

@@ -1,0 +1,39 @@
+---
+- name: Provision instance in AWS
+  hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars_files:
+  - group_vars/all
+
+  vars:
+    access_key: "{{ lookup('env','AWS_ACCESS_KEY_ID') }}"
+    secret_key: "{{ lookup('env','AWS_SECRET_ACCESS_KEY') }}"
+
+  environment:
+    AWS_REGION: "{{ region }}"
+
+  tasks:
+  - fail:
+      msg: Please set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment vars
+    when:
+      - access_key == ""
+      - secret_key == ""
+  - include_tasks: tasks/provision_ec2.yml
+
+- name: Install container and applications
+  hosts: ec2_instances
+  remote_user: centos
+  gather_facts: False
+
+  vars_files:
+  - group_vars/all
+
+  tasks:
+  - name: Setup Docker container
+    include_tasks: 
+      file: tasks/setup_docker.yml
+  - name: Run scripts
+    include_tasks:
+      file: tasks/scripts.yml
