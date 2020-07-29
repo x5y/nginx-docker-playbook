@@ -61,7 +61,6 @@ Run scripts on container
 
 ## Risks / Limitations
 
-* The playbook isn't fully idempotent. It will always create a new EC2 instance.
 * There is no clean up task, so you'll have to do it manually through the AWS web console.
 * It will endlessly log the container status, so may potentially run out of disk space.
 * The centos user has passwordless sudo, so anybody with ssh access can run anything as root.
