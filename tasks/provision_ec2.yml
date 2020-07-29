@@ -59,7 +59,7 @@
     ami_id: >
       {{ amis.images | selectattr('name', 'defined') | sort(attribute='creation_date') | last }}
   ec2:
-    key_name: "{{ key-pair }}"
+    key_name: "{{ key_pair }}"
     type: t2.micro
     image: "{{ ami_id.image_id }}"
     vpc_subnet_id: "{{ subnet.subnet.id }}"

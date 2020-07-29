@@ -8,6 +8,7 @@
   systemd:
     state: started
     name: firewalld
+  become: yes
 
 - name: Enable nginx port
   firewalld:
