@@ -1,0 +1,67 @@
+---
+- name: Cleanup AWS
+  hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars_files:
+  - group_vars/all
+
+  vars:
+    access_key: "{{ lookup('env','AWS_ACCESS_KEY_ID') }}"
+    secret_key: "{{ lookup('env','AWS_SECRET_ACCESS_KEY') }}"
+
+  environment:
+    AWS_REGION: "{{ region }}"
+
+  tasks:
+  - name: Find vpc
+    ec2_vpc_net_info:
+      filters:
+        "tag:Name": "{{ vpc_name }}"
+    register: vpc
+
+  - name: Find ec2 instance
+    ec2_instance_info:
+      region: "{{ region }}"
+      filters:
+        "tag:Name": "{{ instance_name }}"
+        vpc-id: "{{ vpc.vpcs[0].vpc_id }}"
+    register: instances
+
+  - name: terminate instances
+    ec2:
+      state: 'absent'
+      instance_ids: "{{ item.instance_id }}"
+      wait: yes
+    with_items: "{{ instances.instances }}"
+
+  - name: remove internet gateway
+    ec2_vpc_igw:
+      vpc_id: "{{ vpc.vpcs[0].vpc_id }}"
+      state: absent
+
+  - name: remove subnet
+    ec2_vpc_subnet:
+      vpc_id: "{{ vpc.vpcs[0].vpc_id }}"
+      cidr: "{{ subnet_cidr }}"
+      state: absent
+
+  - ec2_vpc_route_table_info:
+      filters:
+        vpc-id: "{{ vpc.vpcs[0].vpc_id }}"
+    register: route_tables
+
+  - name: remove subnet route tables
+    ec2_vpc_route_table:
+      route_table_id: "{{ item.id }}"
+      lookup: id
+      state: absent
+    loop: "{{ route_tables.route_tables }}"
+    when: item.associations|length == 0
+
+  # - name: terminate vpc
+  #   ec2_vpc_net:
+  #     name: "{{ vpc_name }}"
+  #     cidr_block: "{{ vpc_cidr }}"
+  #     state: absent
